@@ -1,0 +1,2 @@
+-- Gold layer - Executive KPIs
+-- Databricks SQL transformation
