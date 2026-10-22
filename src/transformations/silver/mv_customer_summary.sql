@@ -1,0 +1,2 @@
+-- Silver layer - Customer summary
+-- Databricks SQL transformation
