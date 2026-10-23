@@ -1,1 +1,16 @@
-# Databricks Lakeflow pipeline configuration
+resources:
+  pipelines:
+    pipeline_tb_pos_data_cleaning_pipeline:
+      name: TB POS Data Cleaning Pipeline
+      libraries:
+        - glob:
+            include: /Users/a01826956@tec.mx/tb_pos_data_cleaning_pipeline_b039a870/transformations/**
+      schema: default
+      continuous: false
+      development: false
+      photon: true
+      channel: CURRENT
+      catalog: workspace
+      serverless: true
+      root_path: /Users/a01826956@tec.mx/tb_pos_data_cleaning_pipeline_b039a870
+
