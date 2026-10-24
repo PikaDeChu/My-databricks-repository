@@ -1,16 +1,46 @@
+# ============================================================
+# Configuracion del pipeline Lakeflow SDP para Taco Bueno
+# Archivo: resources/pipelines/lakeflow_pipeline.yml
+# ============================================================
+#
+# PROPOSITO:
+#   Define el pipeline que ejecuta Bronze (Auto Loader) -> Silver -> Gold.
+#   Compatible con Declarative Automation Bundles (DAB) o como referencia
+#   para configurar el pipeline en la UI de Databricks.
+#
+# PIPELINE EXISTENTE:
+#   Nombre: "TB POS Data Cleaning Pipeline"
+#   ID:     f1c26ed3-6717-47bd-9d79-ad7b357348fd
+#   Catalog: workspace | Schema: default
+#   Serverless: true | Photon: true | Channel: CURRENT
+#
+# USO:
+#   Opcion A (UI): Actualizar las bibliotecas del pipeline existente para
+#     apuntar a los nuevos archivos en src/transformations/.
+#   Opcion B (DAB): Incluir este archivo en un bundle y desplegar con
+#     `databricks bundle deploy`.
+#
+# VALORES PENDIENTES DE CONFIRMAR:
+#   - Si se conservan las bibliotecas antiguas en transformations/ o se
+#     eliminan despues de verificar que el nuevo flujo funciona.
+# ============================================================
+
 resources:
   pipelines:
-    pipeline_tb_pos_data_cleaning_pipeline:
-      name: TB POS Data Cleaning Pipeline
-      libraries:
-        - glob:
-            include: /Users/a01826956@tec.mx/tb_pos_data_cleaning_pipeline_b039a870/transformations/**
-      schema: default
-      continuous: false
-      development: false
-      photon: true
-      channel: CURRENT
-      catalog: workspace
+    tb_pos_pipeline:
+      name: "TB POS Data Cleaning Pipeline"
+      catalog: "workspace"
+      schema: "default"
       serverless: true
-      root_path: /Users/a01826956@tec.mx/tb_pos_data_cleaning_pipeline_b039a870
-
+      photon: true
+      channel: "CURRENT"
+      libraries:
+        # Bronze: ingesta de CSV via Auto Loader
+        - file:
+            path: /Workspace/Users/a01826956@tec.mx/tb_pos_data_cleaning_pipeline_b039a870/src/transformations/silver/bronze_ingest.sql
+        # Silver: limpieza y validacion
+        - file:
+            path: /Workspace/Users/a01826956@tec.mx/tb_pos_data_cleaning_pipeline_b039a870/src/transformations/silver/silver_clean.sql
+        # Gold: metricas de Taco Bueno
+        - file:
+            path: /Workspace/Users/a01826956@tec.mx/tb_pos_data_cleaning_pipeline_b039a870/src/transformations/gold/gold_metrics.sql

@@ -1,1 +1,42 @@
+# ============================================================
+# Configuracion del Job de orquestacion diaria para Taco Bueno
+# Archivo: resources/jobs/daily_orchestration_job.yml
+# ============================================================
+#
+# PROPOSITO:
+#   Ejecuta el pipeline "TB POS Data Cleaning Pipeline" de forma programada
+#   para ingerir los CSV nuevos del dia, limpiarlos y calcular metricas.
+#
+# PIPELINE ASOCIADO:
+#   ID: f1c26ed3-6717-47bd-9d79-ad7b357348fd
+#   Nombre: "TB POS Data Cleaning Pipeline"
+#
+# HORARIO: PENDIENTE
+#   No existe un Job configurado actualmente. Descomentar el bloque
+#   `schedule` y ajustar la hora segun sea necesario.
+#   Ejemplo: diario a las 7:00 AM (zona America/Mexico_City).
+#
+# USO:
+#   Opcion A (UI): Crear un Job nuevo en la UI con una tarea de tipo
+#     "Pipeline" apuntando al ID del pipeline.
+#   Opcion B (DAB): Incluir este archivo en un bundle y desplegar.
+#
+# VALORES PENDIENTES DE CONFIRMAR:
+#   - Horario de ejecucion (cron y zona horaria).
+#   - Si se requieren alertas por fallo o exito.
+# ============================================================
 
+resources:
+  jobs:
+    tb_pos_daily_orchestration:
+      name: "TB POS Daily Orchestration"
+      tasks:
+        - task_key: run_pipeline
+          pipeline_task:
+            pipeline_id: "f1c26ed3-6717-47bd-9d79-ad7b357348fd"
+      # --- HORARIO PENDIENTE ---
+      # Descomentar y ajustar cuando se defina la frecuencia:
+      # schedule:
+      #   quartz_cron_expression: "0 0 7 * * ?"  # Diario a las 7:00 AM
+      #   timezone_id: "America/Mexico_City"
+      #   pause_status: "UNPAUSED"
