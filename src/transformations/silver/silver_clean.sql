@@ -1,40 +1,42 @@
 -- ============================================================
--- SILVER LAYER: Limpieza y validacion de transacciones POS de Taco Bueno
--- Archivo: src/transformations/silver/silver_clean.sql
+-- SILVER LAYER: Cleaning and validation of Taco Bueno POS transactions
+-- File: src/transformations/silver/silver_clean.sql
 -- ============================================================
 --
--- PROPOSITO:
---   Lee la tabla bronze tb_daily_tld_bronze, normaliza tipos, limpia textos,
---   valida datos y produce la tabla silver tb_daily_tld_silver.
+-- PURPOSE:
+--   Reads the bronze table tb_daily_tld_bronze, standardizes data types,
+--   cleans text, validates data, and produces the silver table
+--   tb_daily_tld_silver.
 --
--- MEJORAS RESPECTO AL CODIGO ANTERIOR:
---   1. Conserva source_file para trazabilidad y deduplicacion segura.
---   2. Usa DECIMAL(18,4) en vez de DOUBLE para columnas monetarias
---      (evita errores de precision en sumas y comparaciones).
---   3. Usa TRY_CAST en vez de CAST: valores invalidos -> NULL (no error).
---   4. No rellena con 0 los importes desconocidos (total_discount, tax,
+-- IMPROVEMENTS OVER THE PREVIOUS CODE:
+--   1. Preserves source_file for traceability and safe deduplication.
+--   2. Uses DECIMAL(18,4) instead of DOUBLE for monetary columns
+--      (avoids precision errors in sums and comparisons).
+--   3. Uses TRY_CAST instead of CAST: invalid values -> NULL (no error).
+--   4. Does not replace unknown amounts with 0 (total_discount, tax,
 --      item_discount, item_voided, order_voided, total_rounding).
---      Se dejan como NULL; no se asume que un valor ausente equivalga a cero.
---   5. SELECT DISTINCT incluye source_file: elimina duplicados exactos
---      dentro del mismo archivo, pero conserva filas identicas que
---      aparecen en archivos diferentes (permite detectar CSVs repetidos
---      con otro nombre en Gold).
---   6. Quita la restriccion valid_check_total >= 0: permite devoluciones
---      y anulaciones con importe negativo.
+--      These remain NULL; missing values are not assumed to equal zero.
+--   5. SELECT DISTINCT includes source_file: removes exact duplicates
+--      within the same file while preserving identical rows that
+--      appear in different files (allows Gold to detect duplicate CSVs
+--      with different filenames).
+--   6. Removes the valid_check_total >= 0 restriction: allows refunds
+--      and voids with negative amounts.
 --
--- GRANULARIDAD:
---   Cada fila = una linea de articulo dentro de una orden.
---   Clave de orden = (store_number, txn_date, check_number).
---   check_total, total_discount y tax se repiten en todas las lineas
---   de la misma orden; NO se deben sumar por linea en Gold.
+-- GRANULARITY:
+--   Each row = one item line within an order.
+--   Order key = (store_number, txn_date, check_number).
+--   check_total, total_discount, and tax repeat across all lines
+--   of the same order; they must NOT be summed across item lines in Gold.
 --
--- TRATAMIENTO DE NULOS:
---   Textos: "nan", "none", "null", "" -> NULL -> COALESCE a "desconocido".
---   Numericos: TRY_CAST fallido -> NULL (se conserva, no se convierte a 0).
---   Columnas ausentes en 2025 (report_group, tender_type, total_rounding)
---   -> NULL en bronze -> "desconocido" en silver para textos.
+-- NULL HANDLING:
+--   Text: "nan", "none", "null", "" -> NULL -> COALESCE to "desconocido"
+--   ("unknown").
+--   Numeric values: failed TRY_CAST -> NULL (preserved, not replaced with 0).
+--   Columns missing in 2025 (report_group, tender_type, total_rounding)
+--   -> NULL in bronze -> "desconocido" in silver for text columns.
 --
--- SALIDA: tabla workspace.default.tb_daily_tld_silver
+-- OUTPUT: table workspace.default.tb_daily_tld_silver
 -- ============================================================
 
 CREATE OR REFRESH MATERIALIZED VIEW tb_daily_tld_silver(
@@ -111,10 +113,10 @@ filled AS (
         total_rounding
     FROM typed
 )
--- Deduplicacion: DISTINCT incluyendo source_file.
--- Elimina duplicados exactos dentro del mismo archivo CSV.
--- Conserva filas identicas que aparecen en archivos diferentes
--- (un CSV repetido con otro nombre se detecta en Gold por source_file).
+-- Deduplication: DISTINCT including source_file.
+-- Removes exact duplicates within the same CSV file.
+-- Preserves identical rows that appear in different files
+-- (a duplicate CSV with a different filename is detected in Gold using source_file).
 SELECT DISTINCT
     source_file,
     store_number, txn_date, check_total, check_number, time_card,
