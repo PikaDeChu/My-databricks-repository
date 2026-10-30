@@ -1,60 +1,60 @@
 -- ============================================================
--- GOLD LAYER: Metricas de ventas de Taco Bueno
--- Archivo: src/transformations/gold/gold_metrics.sql
+-- GOLD LAYER: Taco Bueno sales metrics
+-- File: src/transformations/gold/gold_metrics.sql
 -- ============================================================
 --
--- PROPOSITO:
---   Calcula las metricas comerciales de Taco Bueno a partir de Silver.
---   Tablas creadas (todas en workspace.default):
+-- PURPOSE:
+--   Calculates Taco Bueno business metrics from Silver.
+--   Tables created (all in workspace.default):
 --
---   1. tb_gold_orders            -- Una fila por orden unica
---   2. tb_gold_sales_daily       -- Ventas diarias por sucursal
---   3. tb_gold_products          -- Metricas por producto (unidades, precio promedio, moda)
---   4. tb_gold_products_by_store -- Metricas por producto y sucursal
---   5. tb_gold_discounts         -- Analisis de descuentos (con vs sin)
---   6. tb_gold_discount_products -- Productos que reciben descuento
+--   1. tb_gold_orders            -- One row per unique order
+--   2. tb_gold_sales_daily       -- Daily sales by store
+--   3. tb_gold_products          -- Product metrics (units, average price, mode)
+--   4. tb_gold_products_by_store -- Metrics by product and store
+--   5. tb_gold_discounts         -- Discount analysis (with vs. without discounts)
+--   6. tb_gold_discount_products -- Products receiving discounts
 --
--- DEFINICIONES CLAVE (verificadas contra los datos reales):
---   * Clave de orden = (store_number, txn_date, check_number).
---     check_number NO es unico entre fechas; se repite entre dias.
---   * check_total = Total de la orden (bruto antes de descuento).
---     Se repite en cada linea de la orden; NO se suma por linea.
---   * total_discount = Descuento total de la orden (repetido por linea).
---   * menu_price = Precio UNITARIO del articulo (no importe por linea).
---     Importe bruto de linea = menu_price * quantity.
---   * tax = Impuesto de la orden (repetido por linea).
---     El impuesto se calcula sobre el neto (total - descuento).
---   * Ventas brutas = check_total (una vez por orden).
---   * Ventas netas = check_total - total_discount.
---   * Ticket promedio = promedio de ventas netas por orden.
---   * No existen costos de productos; no se calculan ganancias.
+-- KEY DEFINITIONS (verified against actual data):
+--   * Order key = (store_number, txn_date, check_number).
+--     check_number is NOT unique across dates; it repeats across days.
+--   * check_total = Order total (gross amount before discounts).
+--     Repeated on every order line; NOT summed across lines.
+--   * total_discount = Total order discount (repeated on each line).
+--   * menu_price = Item UNIT price (not the line amount).
+--     Gross line amount = menu_price * quantity.
+--   * tax = Order tax (repeated on each line).
+--     Tax is calculated on the net amount (total - discount).
+--   * Gross sales = check_total (once per order).
+--   * Net sales = check_total - total_discount.
+--   * Average order value = average net sales per order.
+--   * Product costs are unavailable; profits are not calculated.
 --
--- TRATAMIENTO DE ANULACIONES:
---   * transaction_type = 'void' -> linea anulada.
---   * item_voided > 0 -> articulo anulado.
---   * order_voided > 0 -> orden anulada.
---   * Las ordenes completamente anuladas se excluyen de las metricas
---     de ventas, pero se conservan en tb_gold_orders con is_voided = TRUE.
+-- VOID HANDLING:
+--   * transaction_type = 'void' -> voided line.
+--   * item_voided > 0 -> voided item.
+--   * order_voided > 0 -> voided order.
+--   * Fully voided orders are excluded from sales metrics
+--     but retained in tb_gold_orders with is_voided = TRUE.
 --
--- TRATAMIENTO DE ARTICULOS:
---   * Para metricas de producto, solo se incluyen lineas activas:
+-- ITEM HANDLING:
+--   * Product metrics include only active lines:
 --     transaction_type IN ('regular sale', 'discount') AND
---     item_voided = 0 (o NULL) AND quantity > 0 AND menu_price > 0.
---   * Los componentes de combo (menu_price = 0) y modificadores
---     (quantity = 0) no se cuentan como unidades vendidas.
+--     item_voided = 0 (or NULL) AND quantity > 0 AND menu_price > 0.
+--   * Combo components (menu_price = 0) and modifiers
+--     (quantity = 0) are not counted as units sold.
 --
--- COMPARACIONES CON/SIN DESCUENTO:
---   * Es descriptiva: no implica causalidad. Una diferencia en ticket
---     promedio puede deberse al tipo de producto, la sucursal o el dia,
---     no solo al descuento.
+-- COMPARISONS WITH/WITHOUT DISCOUNTS:
+--   * The comparison is descriptive: it does not imply causation.
+--     A difference in average order value may be due to the product
+--     type, store, or day, rather than the discount alone.
 -- ============================================================
 
 
 -- ============================================================
--- 1. tb_gold_orders: resumen a nivel orden
--- Una fila por (store_number, txn_date, check_number).
--- check_total, total_discount y tax se toman una sola vez (MAX)
--- porque estan repetidos en cada linea de la orden en Silver.
+-- 1. tb_gold_orders: order-level summary
+-- One row per (store_number, txn_date, check_number).
+-- check_total, total_discount, and tax are taken only once (MAX)
+-- because they are repeated on every order line in Silver.
 -- ============================================================
 CREATE OR REFRESH MATERIALIZED VIEW tb_gold_orders
 COMMENT "Gold: resumen por orden. Clave = (store_number, txn_date, check_number). check_total no se suma por linea."
@@ -98,10 +98,10 @@ SELECT
     gross_sales,
     total_discount,
     tax,
-    -- Ventas netas = bruto - descuento.
-    -- COALESCE(total_discount, 0) es un calculo en Gold, no una suposicion
-    -- sobre el dato. Si total_discount es NULL, no se sabe el descuento;
-    -- para poder calcular neto se asume 0, pero se marca en has_discount.
+   -- Net sales = gross sales - discount.
+    -- COALESCE(total_discount, 0) is a calculation in Gold, not an assumption
+    -- about the data. If total_discount is NULL, the discount is unknown;
+    -- 0 is assumed to calculate net sales, but this is flagged in has_discount.
     gross_sales - COALESCE(total_discount, 0) AS net_sales,
     CASE WHEN total_discount > 0 THEN TRUE ELSE FALSE END AS has_discount,
     CASE WHEN gross_sales > 0 AND total_discount IS NOT NULL
@@ -110,25 +110,25 @@ SELECT
     active_line_count,
     void_lines,
     CASE WHEN has_order_void = 1 THEN TRUE ELSE FALSE END AS has_order_void,
-    -- Orden anulada si todas las lineas son void o order_voided > 0
+    -- Order is voided if all lines are void or order_voided > 0
     CASE WHEN has_non_void_line = 0 OR has_order_void = 1 THEN TRUE ELSE FALSE END AS is_voided,
-    -- Flag: el total varia entre lineas de la misma orden (error de datos)
+    -- Flag: the total varies across lines of the same order (data error)
     CASE WHEN distinct_totals > 1 THEN TRUE ELSE FALSE END AS has_inconsistent_total,
-    -- Conciliacion: gross_sales - suma de importes de linea (deberia ser ~0)
+    -- Reconciliation: gross_sales - sum of line amounts (should be ~0)
     gross_sales - line_gross_sum AS gross_reconcile_diff,
-    -- Conciliacion: total_discount - suma de item_discount (deberia ser ~0)
+    -- Reconciliation: total_discount - sum of item_discount (should be ~0)
     COALESCE(total_discount, 0) - line_discount_sum AS discount_reconcile_diff,
-    -- Canal de servicio
+    -- Service channel
     CASE WHEN SIZE(service_modes) = 1 THEN service_modes[0]
          ELSE 'multiple/sin_dato' END AS service_mode
 FROM order_agg;
 
 
 -- ============================================================
--- 2. tb_gold_sales_daily: ventas diarias por sucursal
--- Agrega tb_gold_orders excluyendo ordenes anuladas.
--- Incluye ticket promedio, mediana y conteo de ordenes con descuento.
--- Para ventas mensuales: SELECT date_trunc('month', txn_date), ...
+-- 2. tb_gold_sales_daily: daily sales by store
+-- Aggregates tb_gold_orders, excluding voided orders.
+-- Includes average order value, median, and count of discounted orders.
+-- For monthly sales: SELECT date_trunc('month', txn_date), ...
 --   FROM tb_gold_sales_daily GROUP BY 1.
 -- ============================================================
 CREATE OR REFRESH MATERIALIZED VIEW tb_gold_sales_daily
@@ -145,16 +145,16 @@ SELECT
     SUM(net_sales)                 AS net_sales_sum,
     SUM(CASE WHEN has_discount THEN 1 ELSE 0 END) AS orders_with_discount,
     SUM(CASE WHEN NOT has_discount THEN 1 ELSE 0 END) AS orders_without_discount,
-    -- Ticket promedio = ventas netas / numero de ordenes
+    -- Average order value = net sales / number of orders
     CASE WHEN COUNT(*) > 0 THEN SUM(net_sales) / COUNT(*) ELSE NULL END AS avg_ticket,
-    -- Mediana del ticket neto (aproximada para rendimiento distribuido)
+    -- Median net order value (approximate for distributed processing performance)
     approx_percentile(net_sales, 0.5) AS median_ticket,
-    -- Ticket promedio de ordenes con descuento
+    -- Average order value for discounted orders
     CASE WHEN SUM(CASE WHEN has_discount THEN 1 ELSE 0 END) > 0
          THEN SUM(CASE WHEN has_discount THEN net_sales ELSE 0 END) /
               SUM(CASE WHEN has_discount THEN 1 ELSE 0 END)
          ELSE NULL END AS avg_ticket_with_discount,
-    -- Ticket promedio de ordenes sin descuento
+    -- Average order value for orders without discounts
     CASE WHEN SUM(CASE WHEN NOT has_discount THEN 1 ELSE 0 END) > 0
          THEN SUM(CASE WHEN NOT has_discount THEN net_sales ELSE 0 END) /
               SUM(CASE WHEN NOT has_discount THEN 1 ELSE 0 END)
@@ -165,12 +165,12 @@ GROUP BY store_number, txn_date;
 
 
 -- ============================================================
--- 3. tb_gold_products: metricas por producto
--- Una fila por (pos_code, menu_item, report_group).
--- Solo incluye lineas activas (venta real, no anulada, qty > 0, precio > 0).
--- Moda = precio unitario mas frecuente del producto en todo el periodo.
--- Promedio = promedio del importe neto por linea (menu_price * qty - item_discount).
--- Periodo: desde la primera hasta la ultima aparicion en los datos.
+-- 3. tb_gold_products: product metrics
+-- One row per (pos_code, menu_item, report_group).
+-- Includes only active lines (actual sale, not voided, qty > 0, price > 0).
+-- Mode = most frequent unit price of the product over the entire period.
+-- Average = average net line amount (menu_price * qty - item_discount).
+-- Period: from the first to the last occurrence in the data.
 -- ============================================================
 CREATE OR REFRESH MATERIALIZED VIEW tb_gold_products
 COMMENT "Gold: metricas por producto. Solo lineas activas (regular sale/discount, no void, qty>0, price>0)."
@@ -194,7 +194,7 @@ WITH active_lines AS (
       AND quantity > 0
       AND menu_price > 0
 ),
--- Frecuencia de precios para calcular la moda
+-- Price frequency for calculating the mode
 price_freq AS (
     SELECT
         pos_code, menu_item, menu_price,
@@ -221,11 +221,11 @@ SELECT
     SUM(a.line_gross)                         AS total_gross,
     SUM(COALESCE(a.item_discount, 0))         AS total_discount,
     SUM(a.line_net)                           AS total_net,
-    -- Precio unitario promedio (promedio simple de menu_price)
+    -- Average unit price (simple average of menu_price)
     AVG(a.menu_price)                         AS avg_unit_price,
-    -- Moda del precio unitario (precio mas frecuente)
+    -- Unit price mode (most frequent price) 
     m.mode_price,
-    -- Promedio del importe neto por linea de venta
+    -- Unit price mode (most frequent price)  
     AVG(a.line_net)                           AS avg_line_net,
     MIN(a.txn_date)                           AS first_seen,
     MAX(a.txn_date)                           AS last_seen,
@@ -237,7 +237,7 @@ GROUP BY a.pos_code, a.menu_item, a.report_group, m.mode_price;
 
 
 -- ============================================================
--- 4. tb_gold_products_by_store: metricas por producto y sucursal
+-- 4. tb_gold_products_by_store: metrics by product and store
 -- ============================================================
 CREATE OR REFRESH MATERIALIZED VIEW tb_gold_products_by_store
 COMMENT "Gold: metricas por producto y sucursal. Solo lineas activas."
@@ -264,11 +264,11 @@ GROUP BY store_number, pos_code, menu_item, report_group;
 
 
 -- ============================================================
--- 5. tb_gold_discounts: analisis de descuentos
--- Compara ordenes con descuento vs sin descuento por sucursal.
--- Comparacion descriptiva: NO implica causalidad. Una diferencia en
--- ticket promedio puede deberse al tipo de producto, la sucursal
--- o el dia, no solo al descuento.
+-- 5. tb_gold_discounts: discount analysis
+-- Compares orders with and without discounts by store.
+-- Descriptive comparison: does NOT imply causation. A difference in
+-- average order value may be due to the product type, store,
+-- or day, rather than the discount alone.
 -- ============================================================
 CREATE OR REFRESH MATERIALIZED VIEW tb_gold_discounts
 COMMENT "Gold: analisis de descuentos por sucursal y rango. Comparacion con/sin descuento (descriptiva, no causal)."
@@ -298,17 +298,17 @@ SELECT
     SUM(gross_sales)            AS gross_sales_sum,
     SUM(total_discount)         AS discount_sum,
     SUM(net_sales)              AS net_sales_sum,
-    -- Ticket promedio del grupo
+    -- Average order value for the group 
     CASE WHEN COUNT(*) > 0 THEN SUM(net_sales) / COUNT(*) ELSE NULL END AS avg_ticket,
-    -- Mediana del ticket neto
+    -- Median net order value
     approx_percentile(net_sales, 0.5) AS median_ticket
 FROM orders_with_range
 GROUP BY store_number, discount_range;
 
 
 -- ============================================================
--- 6. tb_gold_discount_products: productos que reciben descuento
--- Lista los productos con item_discount > 0 y sus metricas.
+-- 6. tb_gold_discount_products: products receiving discounts
+-- Lists products with item_discount > 0 and their metrics.
 -- ============================================================
 CREATE OR REFRESH MATERIALIZED VIEW tb_gold_discount_products
 COMMENT "Gold: productos que reciben descuento. Lineas con item_discount > 0."
@@ -322,7 +322,7 @@ SELECT
     SUM(menu_price * quantity)                AS gross_with_discount,
     SUM(item_discount)                        AS total_item_discount,
     SUM((menu_price * quantity) - item_discount) AS net_with_discount,
-    -- Tasa de descuento promedio del producto
+    -- Average product discount rate 
     CASE WHEN SUM(menu_price * quantity) > 0
          THEN SUM(item_discount) / SUM(menu_price * quantity)
          ELSE NULL END AS avg_discount_rate,
