@@ -1,28 +1,28 @@
 # ============================================================
-# Configuracion del pipeline Lakeflow SDP para Taco Bueno
-# Archivo: resources/pipelines/lakeflow_pipeline.yml
+# Lakeflow SDP pipeline configuration for Taco Bueno
+# File: resources/pipelines/lakeflow_pipeline.yml
 # ============================================================
 #
-# PROPOSITO:
-#   Define el pipeline que ejecuta Bronze (Auto Loader) -> Silver -> Gold.
-#   Compatible con Declarative Automation Bundles (DAB) o como referencia
-#   para configurar el pipeline en la UI de Databricks.
+# PURPOSE:
+#   Defines the pipeline that runs Bronze (Auto Loader) -> Silver -> Gold.
+#   Compatible with Declarative Automation Bundles (DAB), or usable as
+#   a reference for configuring the pipeline in the Databricks UI.
 #
-# PIPELINE EXISTENTE:
-#   Nombre: "TB POS Data Cleaning Pipeline"
-#   ID:     f1c26ed3-6717-47bd-9d79-ad7b357348fd
+# EXISTING PIPELINE:
+#   Name: "TB POS Data Cleaning Pipeline"
+#   ID:   f1c26ed3-6717-47bd-9d79-ad7b357348fd
 #   Catalog: workspace | Schema: default
 #   Serverless: true | Photon: true | Channel: CURRENT
 #
-# USO:
-#   Opcion A (UI): Actualizar las bibliotecas del pipeline existente para
-#     apuntar a los nuevos archivos en src/transformations/.
-#   Opcion B (DAB): Incluir este archivo en un bundle y desplegar con
+# USAGE:
+#   Option A (UI): Update the existing pipeline libraries to point
+#     to the new files in src/transformations/.
+#   Option B (DAB): Include this file in a bundle and deploy using
 #     `databricks bundle deploy`.
 #
-# VALORES PENDIENTES DE CONFIRMAR:
-#   - Si se conservan las bibliotecas antiguas en transformations/ o se
-#     eliminan despues de verificar que el nuevo flujo funciona.
+# ITEMS PENDING CONFIRMATION:
+#   - Whether to retain the old libraries in transformations/ or remove
+#     them after verifying that the new flow works.
 # ============================================================
 
 resources:
@@ -35,12 +35,12 @@ resources:
       photon: true
       channel: "CURRENT"
       libraries:
-        # Bronze: ingesta de CSV via Auto Loader
+        # Bronze: CSV ingestion through Auto Loader
         - file:
             path: /Workspace/Users/a01826956@tec.mx/tb_pos_data_cleaning_pipeline_b039a870/src/transformations/silver/bronze_ingest.sql
-        # Silver: limpieza y validacion
+        # Silver: data cleansing and validation
         - file:
             path: /Workspace/Users/a01826956@tec.mx/tb_pos_data_cleaning_pipeline_b039a870/src/transformations/silver/silver_clean.sql
-        # Gold: metricas de Taco Bueno
+        # Gold: Taco Bueno metrics
         - file:
             path: /Workspace/Users/a01826956@tec.mx/tb_pos_data_cleaning_pipeline_b039a870/src/transformations/gold/gold_metrics.sql
