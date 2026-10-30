@@ -1,38 +1,38 @@
 -- ============================================================
--- BRONZE LAYER: Ingesta automatica de CSVs de transacciones POS de Taco Bueno
--- Archivo: src/transformations/silver/bronze_ingest.sql
+-- BRONZE LAYER: Automatic ingestion of Taco Bueno POS transaction CSVs
+-- File: src/transformations/silver/bronze_ingest.sql
 -- ============================================================
 --
--- PROPOSITO:
---   Lee todos los CSV del volumen /Volumes/workspace/default/tacobueno/data/
---   usando Auto Loader (read_files con STREAM) y los almacena en la tabla
---   bronze workspace.default.tb_daily_tld_bronze.
+-- PURPOSE:
+--   Reads all CSVs from the /Volumes/workspace/default/tacobueno/data/
+--   volume using Auto Loader (read_files with STREAM) and stores them
+--   in the bronze table workspace.default.tb_daily_tld_bronze.
 --
--- ESQUEMA:
---   Los CSV de 2025 tienen 19 columnas. Los de diciembre 2025 y 2026 anaden
---   Report Group y Tender Type (21 total). El esquema define 22 columnas
---   (incluye total_rounding para compatibilidad futura; ninguna columna
---   real lo tiene hoy). Las columnas faltantes se rellenan con NULL
---   automaticamente. El mapeo es posicional: la columna 1 del CSV
---   ("Store #") se asigna a store_number, la 2 ("Date") a txn_date, etc.
+-- SCHEMA:
+--   The 2025 CSVs have 19 columns. Those from December 2025 and 2026 add
+--   Report Group and Tender Type (21 total). The schema defines 22 columns
+--   (including total_rounding for future compatibility; no actual file
+--   currently contains it). Missing columns are automatically filled
+--   with NULL. Mapping is positional: CSV column 1 ("Store #") maps to
+--   store_number, column 2 ("Date") maps to txn_date, etc.
 --
--- TRAZABILIDAD:
---   Conserva el nombre, ruta y fecha de modificacion del archivo de origen
---   y la marca de tiempo de ingesta.
+-- TRACEABILITY:
+--   Preserves the source file's name, path, and modification date,
+--   along with the ingestion timestamp.
 --
 -- AUTO LOADER:
---   El estado de los archivos procesados se gestiona mediante el checkpoint
---   del pipeline. No se reprocesan los archivos ya ingeridos. Los archivos
---   nuevos se incorporan automaticamente en la siguiente ejecucion.
---   Los archivos vacios no generan filas (no equivalen a cero ventas).
---   Un CSV repetido con otro nombre SI se procesa; se detecta en Silver
---   comparando source_file + contenido.
+--   The status of processed files is managed through the pipeline
+--   checkpoint. Previously ingested files are not reprocessed. New files
+--   are automatically included in the next run.
+--   Empty files produce no rows (they do not represent zero sales).
+--   A duplicate CSV with a different filename IS processed; it is detected
+--   in Silver by comparing source_file + content.
 --
--- TIPOS:
---   Todas las columnas como STRING para evitar el problema de TIME(6)
---   en Delta Lake con compute serverless.
+-- DATA TYPES:
+--   All columns use STRING to avoid the TIME(6) issue
+--   in Delta Lake with serverless compute.
 --
--- SALIDA: tabla workspace.default.tb_daily_tld_bronze
+-- OUTPUT: table workspace.default.tb_daily_tld_bronze
 -- ============================================================
 
 CREATE OR REFRESH STREAMING TABLE tb_daily_tld_bronze
